@@ -13,7 +13,7 @@ basic info to be used by the `mydock` commands. If no
 `--config <file>` is given the `default.conf` file is used:
 
     > cat default.conf
-    REPOSITORY=containers.cisco.com/ttornkvi/debian-bullseye-v2
+    REPOSITORY=containers.acme.com/tobbe/debian-bullseye-v2
     TAG=v3
     NAME=nils
     SHARED_DIR=/tmp/shared_docker_dir
