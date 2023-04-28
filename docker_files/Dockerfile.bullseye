@@ -1,0 +1,104 @@
+FROM debian:bullseye
+
+ENV DEBIAN_FRONTENV noninteractive
+
+#Fix timezone so install does not fail
+ENV TX Europe/Stockholm
+
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+RUN apt-get update && apt-get -y upgrade
+
+RUN apt-get install -y apt-utils \
+                       curl \
+                       wget \
+                       gawk \
+                       autoconf \
+                       bison \
+                       libtool \
+                       aptitude \
+                       xsltproc \
+                       ant \
+                       syslog-ng \
+                       nfs-client \
+                       openjdk-11-jdk \
+                       git \
+                       diffstat \
+                       unzip \
+                       texinfo \
+                       gcc \
+                       iproute2 \
+                       procps \
+                       net-tools \
+                       nginx \
+                       build-essential \
+                       chrpath \
+                       socat \
+                       cpio \
+                       lsb-release \
+                       python3-dev \
+                       libpam-dev \
+                       libssl-dev \
+                       xz-utils \
+                       tk-dev \
+                       debianutils \
+                       iputils-ping \
+                       libbz2-dev \
+                       libreadline-dev \
+                       libsqlite3-dev \
+                       libegl1-mesa \
+                       libsdl1.2-dev \
+                       zlib1g-dev \
+                       libxml2-dev \
+                       libxmlsec1-dev \
+                       llvm \
+                       libncurses5-dev \
+                       pylint \
+                       mesa-common-dev \
+                       flex \
+                       tshark \
+                       locales \
+                       sudo \
+                       bridge-utils \
+                       emacs
+
+
+# Fix error "Please use a locale setting which supports utf-8."
+# See https://wiki.yoctoproject.org/wiki/TipsAndTricks/ResolvingLocaleIssues
+
+RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+        echo 'LANG="en_US.UTF-8"'>/etc/default/locale && \
+        dpkg-reconfigure --frontend=noninteractive locales && \
+        update-locale LANG=en_US.UTF-8
+
+ENV LC_ALL en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US.UTF-8
+
+#ADD User
+
+#ARG USERNAME
+
+#ARG USERID
+
+#ARG GROUPID
+
+#Remove user if it exist
+# RUN userdel -r dfx
+
+#Add group
+#RUN groupadd -g $GROUPID -o $NAME
+
+#Add local user
+#RUN useradd -m -u $USERID -g $GROUPID -s /bin/bash $NAME
+
+#Fix sudo.
+#RUN echo "$USERNAME ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
+#      && echo "#end." >> /etc/sudoers
+
+#USER $NAME
+
+#ENV HOME /home/$NAME
+
+#WORKDIR /home/$NAME
+
+#CMD "/bin/bash"

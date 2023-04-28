@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+
+# TODO:
+#
+# Creating user in the Makefile:
+# prepare_user: prepare_user.$(USERNAME)
+#
+
+
+set -Eeuo pipefail
+trap cleanup SIGINT SIGTERM ERR EXIT
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
+
+. ./default.conf
+
+cleanup() {
+  trap - SIGINT SIGTERM ERR EXIT
+  # script cleanup here
+}
+
+usage() {
+  cat << EOF # remove the space between << and EOF, this is due to web plugin issue
+Usage: $(basename "${BASH_SOURCE[0]}") <cmd> [<options>]
+
+Available commands:
+
+build           Build image from --docker-file
+images          Show all images
+ps              Show all containers
+remove          Remove container
+run             Create and Start a new container
+setup_users     Create Users according to --users <file>
+shell           Enter container in a shell
+show            Run the images and ps command
+show_config     Show the config parameters
+start           Start an existing container
+stop            Stop a container
+sync            Commit container (save it)
+user            Enter container as User
+help            This help
+
+Available options:
+
+-h, --help           Print this help and exit
+-v, --verbose        Be Verbose (set -x)
+-n, --name           Name of container (overide config file setting)
+--tag <tag>          Tag name  (overide config file setting)
+-u, --user <user>    User name  (overide env / config file setting)
+--config <file>      Use config file (default is: default.conf)
+--docker-file <file> Dockerfile to be used
+--dry-run            Don't actually execute the command
+EOF
+  exit
+}
+
+[[ -z "$@" ]] && usage
+
+
+config() {
+  . ./"${config-default.conf}"
+}
+
+dry_run=0
+
+
+show_config() {
+  echo "Config file: "${config-default.conf}""
+  echo "REPOSITORY = ${REPOSITORY}"
+  echo "TAG        = ${TAG}"
+  echo "NAME       = ${NAME}"
+  echo "SHARED_DIR = ${SHARED_DIR}"
+}
+
+start() {
+  [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
+  echo "sudo docker start ${NAME}"
+  [[ ${dry_run} -eq 0 ]] && sudo docker start ${NAME}
+}
+
+stop() {
+  [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
+  echo "sudo docker stop ${NAME}"
+  [[ ${dry_run} -eq 0 ]] && sudo docker stop ${NAME}
+}
+
+user() {
+  [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
+  [[ -z "${USER-}" ]] && die "Missing required user: --user <user>"
+  echo "sudo docker exec -u root -it ${NAME} bash -c su -l ${USER}"
+  [[ ${dry_run} -eq 0 ]] && sudo docker exec -u root -it ${NAME} bash -c "su -l ${USER}"
+}
+
+_shell() {
+  [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
+  echo "sudo docker exec -it ${NAME} bash"
+  [[ ${dry_run} -eq 0 ]] && sudo docker exec -it ${NAME} bash
+}
+
+_ps() {
+  echo "sudo docker ps -a"
+  [[ ${dry_run} -eq 0 ]] && sudo docker ps -a
+}
+
+images() {
+  echo "sudo docker images"
+  [[ ${dry_run} -eq 0 ]] && sudo docker images
+}
+
+show() {
+  images
+  echo ""
+  _ps
+}
+
+build() {
+  [[ -z "${REPOSITORY-}" ]] && die "Missing required REPOSITORY"
+  echo "sudo docker build -t ${REPOSITORY} - < 	${DOCKERFILE-Dockerfile}"
+  sudo docker build -t ${REPOSITORY} - < 	${DOCKERFILE-Dockerfile}
+}
+
+remove() {
+  [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
+  echo "sudo docker rm ${NAME}"
+  [[ ${dry_run} -eq 0 ]] && sudo docker rm ${NAME}
+}
+
+sync() {
+  [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
+  [[ -z "${REPOSITORY-}" ]] && die "Missing required REPOSITORY"
+  echo "docker commit -m sync" ${NAME} ${REPOSITORY}:"${TAG-latest}"
+  [[ ${dry_run} -eq 0 ]] && sudo docker commit -m "sync" ${NAME} ${REPOSITORY}:"${TAG-latest}"
+}
+
+run() {
+  [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
+  [[ -z "${REPOSITORY-}" ]] && die "Missing required REPOSITORY"
+  [[ -z "${SHARED_DIR-}" ]] && die "Missing required SHARED_DIR"
+  echo "sudo docker run -dt --privileged  -v ${SHARED_DIR}:${SHARED_DIR} \
+    --name ${NAME} --hostname ${HOSTNAME-arnold} ${REPOSITORY}:${TAG-latest}"
+  [[ ${dry_run} -eq 0 ]] && sudo docker run -dt --privileged  -v ${SHARED_DIR}:${SHARED_DIR} \
+                  --name ${NAME} --hostname ${HOSTNAME-arnold} ${REPOSITORY}:"${TAG-latest}"
+}
+
+_exec() {
+  [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
+  [[ -z "${xcmd-}" ]] && die "Missing required cmd: --cmd <cmd>"
+  echo "sudo docker exec -u root -it ${NAME} ${xcmd}"
+  [[ ${dry_run} -eq 0 ]] && sudo docker exec -u root -it ${NAME} ${xcmd}
+}
+
+_root_exec() {
+  [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
+  echo "sudo docker exec -u root ${NAME} bash -c $1"
+  [[ ${dry_run} -eq 0 ]] && sudo docker exec -u root ${NAME} bash -c "$1"
+  return 0
+}
+
+setup_users() {
+  [[ -z "${USERS-}" ]] && die "Missing required USERS csv file: --users <file>"
+  [[ ${dry_run} -eq 1 ]] && printf '%-20.20s %-10.10s %-20.20s %-10.10s\n' "USERNAME" "USERID" "GROUPNAME" "GROUPID"
+  while IFS="," read -r username userid groupname groupid
+    do
+      [[ ${dry_run} -eq 1 ]] && printf '%s\n %-20.20s %-10.10s %-20.20s %-10.10s\n' "---" ${username} ${userid} ${groupname} ${groupid}
+      _root_exec "groupadd -f -g ${groupid} ${groupname}"
+      _root_exec "useradd -m -u ${userid} -g ${groupid} ${username} -s /bin/bash"
+      _root_exec "echo '${username}  ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/${username}"
+    done < ${USERS}
+
+}
+
+msg() {
+  # ${parameter-default}, ${parameter:-default}
+  # If parameter not set, use default.
+  echo >&2 -e "${1-}"
+}
+
+die() {
+  local msg=$1
+  local code=${2-1} # default exit status 1
+  msg "$msg"
+  exit "$code"
+}
+
+parse_params() {
+  # default values of variables set from params
+  flag=0
+  param=''
+  cmd="$1"; shift
+
+  while :; do
+    case "${1-}" in
+    -h | --help) usage ;;
+    -v | --verbose) set -x ;;
+    -n | --name)
+      NAME="${2-}"
+      shift
+      ;;
+    --tag)
+      TAG="${2-}"
+      shift
+      ;;
+    -u | --user)
+      USER="${2-}"
+      shift
+      ;;
+    --xcmd)
+      xcmd="${2-}"
+      shift
+      ;;
+    --config)
+      config="${2-}"
+      shift
+      ;;
+    --users)
+      USERS="${2-}"
+      shift
+      ;;
+    --docker-file)
+      DOCKERFILE="${2-}"
+      shift
+      ;;
+    --dry-run) dry_run=1 ;;
+    -?*) die "Unknown option: $1" ;;
+    *) break ;;
+    esac
+    shift
+  done
+
+  args=("$@")
+
+  # check required params and arguments
+  [[ -z "${cmd-}" ]] && die "Missing required command: <cmd>"
+
+  return 0
+}
+
+config
+
+parse_params "$@"
+
+
+# script logic here
+
+case "${cmd-}" in
+  help) usage ;;
+  build) build ;;
+  exec) _exec ;;
+  user) user ;;
+  shell) _shell ;;
+  sync) sync ;;
+  start) start ;;
+  stop) stop ;;
+  show) show ;;
+  run) run ;;
+  rm) remove ;;
+  ps) _ps ;;
+  images) images ;;
+  show_config) show_config ;;
+  setup_users) setup_users ;;
+
+  *) die "Unknown command: $1" ;;
+esac
