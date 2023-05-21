@@ -43,14 +43,17 @@ help            This help
 
 Available options:
 
--h, --help           Print this help and exit
--v, --verbose        Be Verbose (set -x)
--n, --name           Name of container (overide config file setting)
---tag <tag>          Tag name  (overide config file setting)
--u, --user <user>    User name  (overide env / config file setting)
---config <file>      Use config file (default is: default.conf)
---docker-file <file> Dockerfile to be used
---dry-run            Don't actually execute the command
+-h, --help             Print this help and exit
+-v, --verbose          Be Verbose (set -x)
+-n, --name             Name of container (overide config file setting)
+--tag <tag>            Tag name  (overide config file setting)
+-u, --user <user>      User name  (overide env / config file setting)
+--config <file>        Use config file (default is: default.conf)
+                       (use as first switch)
+-p, --port <Host:Cont> Map ports; used whith command 'run'
+-e, --env <ENVVARS>    Setup environment variables: "K:V"
+--docker-file <file>   Dockerfile to be used
+--dry-run              Don't actually execute the command
 EOF
   exit
 }
@@ -59,14 +62,14 @@ EOF
 
 
 config() {
-  . ./"${config-default.conf}"
+  . ./"${config_file-default.conf}"
 }
 
 dry_run=0
 
 
 show_config() {
-  echo "Config file: "${config-default.conf}""
+  echo "Config file: "${config_file-default.conf}""
   echo "REPOSITORY = ${REPOSITORY}"
   echo "TAG        = ${TAG}"
   echo "NAME       = ${NAME}"
@@ -140,12 +143,23 @@ sync() {
 }
 
 run() {
+  if [ ! -z "${PORTS}" ]; then
+    PMAP="-p ${PORTS}"
+  else
+    PMAP=""
+  fi
+  if [ ! -z "${ENV}" ]; then
+    EMAP="-e ${ENV}"
+  else
+    EMAP=""
+  fi
   [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
   [[ -z "${REPOSITORY-}" ]] && die "Missing required REPOSITORY"
   [[ -z "${SHARED_DIR-}" ]] && die "Missing required SHARED_DIR"
-  echo "sudo docker run -dt --privileged  -v ${SHARED_DIR}:${SHARED_DIR} \
+  echo "sudo docker run -dt --privileged  -v ${SHARED_DIR}:${SHARED_DIR} $PMAP $EMAP \
     --name ${NAME} --hostname ${HOSTNAME-arnold} ${REPOSITORY}:${TAG-latest}"
   [[ ${dry_run} -eq 0 ]] && sudo docker run -dt --privileged  -v ${SHARED_DIR}:${SHARED_DIR} \
+                  $PMAP $EMAP \
                   --name ${NAME} --hostname ${HOSTNAME-arnold} ${REPOSITORY}:"${TAG-latest}"
 }
 
@@ -215,12 +229,23 @@ parse_params() {
       USER="${2-}"
       shift
       ;;
+    -p | --ports)
+      PORTS="${2-}"
+      shift
+      ;;
+    -e | --env)
+      ENV="${2-}"
+      shift
+      ;;
     --xcmd)
       xcmd="${2-}"
       shift
       ;;
     --config)
-      config="${2-}"
+      # Important to have --config first in args
+      # so that other switches can override.
+      config_file="${2-}"
+      config
       shift
       ;;
     --users)
@@ -249,7 +274,6 @@ parse_params() {
 config
 
 parse_params "$@"
-
 
 # script logic here
 
