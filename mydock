@@ -12,6 +12,9 @@ trap cleanup SIGINT SIGTERM ERR EXIT
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 
+ENV=
+EXTRA_RUN_FLAGS=
+
 . ./default.conf
 
 cleanup() {
@@ -70,10 +73,11 @@ dry_run=0
 
 show_config() {
   echo "Config file: "${config_file-default.conf}""
-  echo "REPOSITORY = ${REPOSITORY}"
-  echo "TAG        = ${TAG}"
-  echo "NAME       = ${NAME}"
-  echo "SHARED_DIR = ${SHARED_DIR}"
+  echo "REPOSITORY      = ${REPOSITORY}"
+  echo "TAG             = ${TAG}"
+  echo "NAME            = ${NAME}"
+  echo "SHARED_DIR      = ${SHARED_DIR}"
+  echo "EXTRA_RUN_FLAGS = ${EXTRA_RUN_FLAGS}"
 }
 
 start() {
@@ -156,9 +160,10 @@ run() {
   [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
   [[ -z "${REPOSITORY-}" ]] && die "Missing required REPOSITORY"
   [[ -z "${SHARED_DIR-}" ]] && die "Missing required SHARED_DIR"
-  echo "sudo docker run -dt --privileged  -v ${SHARED_DIR}:${SHARED_DIR} $PMAP $EMAP \
+  EXTRA=${EXTRA_RUN_FLAGS}
+  echo "sudo docker run -dt --privileged  -v ${SHARED_DIR}:${SHARED_DIR} ${EXTRA} $PMAP $EMAP \
     --name ${NAME} --hostname ${HOSTNAME-arnold} ${REPOSITORY}:${TAG-latest}"
-  [[ ${dry_run} -eq 0 ]] && sudo docker run -dt --privileged  -v ${SHARED_DIR}:${SHARED_DIR} \
+  [[ ${dry_run} -eq 0 ]] && sudo docker run -dt --privileged  -v ${SHARED_DIR}:${SHARED_DIR} ${EXTRA} \
                   $PMAP $EMAP \
                   --name ${NAME} --hostname ${HOSTNAME-arnold} ${REPOSITORY}:"${TAG-latest}"
 }
