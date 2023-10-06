@@ -30,6 +30,7 @@ Available commands:
 
 build           Build image from --docker-file
 images          Show all images
+logs            Show logs
 ps              Show all containers
 rm              Remove container
 rm_image        Remove image
@@ -113,6 +114,11 @@ _ps() {
 images() {
   echo "sudo docker images"
   [[ ${dry_run} -eq 0 ]] && sudo docker images
+}
+
+logs() {
+  echo "sudo docker logs ${NAME}"
+  [[ ${dry_run} -eq 0 ]] && sudo docker logs ${NAME}
 }
 
 show() {
@@ -297,6 +303,7 @@ case "${cmd-}" in
   rm_image) remove_image ;;
   ps) _ps ;;
   images) images ;;
+  logs) logs ;;
   show_config) show_config ;;
   setup_users) setup_users ;;
 
