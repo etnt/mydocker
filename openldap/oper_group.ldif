@@ -1,0 +1,5 @@
+dn: cn=oper,ou=groups,dc=example,dc=org
+objectClass: groupofnames
+cn: oper
+description: Oper users
+member: uid=sbrown,ou=engineering,dc=example,dc=org
