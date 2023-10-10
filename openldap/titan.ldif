@@ -1,0 +1,3 @@
+dn: cn=titan,ou=groups,dc=example,dc=com
+objectclass: groupOfNames
+cn: titan

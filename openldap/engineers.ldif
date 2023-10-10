@@ -1,5 +1,5 @@
 # Add John Smith to the organization (slappasswd -h {SHA} -s qwe123)
-dn: uid=jsmith,ou=engineering,dc=example,dc=org
+dn: uid=jsmith,ou=engineering,dc=example,dc=com
 changetype: add
 description: John Smith from engineering.  John is the tech
   lead of the project, so contact him with any questions.
@@ -20,7 +20,7 @@ loginShell: /bin/bash
 userPassword: {SHA}xTJVMXuxFwfQ9hRpazzm8iHQ4vI=
 
 # Add Sally Brown to the organization
-dn: uid=sbrown,ou=engineering,dc=example,dc=org
+dn: uid=sbrown,ou=engineering,dc=example,dc=com
 changetype: add
 description: Sally Brown from engineering. Sally is responsible
   for designing the graphical user interface.

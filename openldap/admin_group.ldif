@@ -1,5 +1,5 @@
-dn: cn=admin,ou=groups,dc=example,dc=org
+dn: cn=admin,ou=groups,dc=example,dc=com
 objectClass: groupofnames
 cn: admin
 description: Admin users
-member: uid=jsmith,ou=engineering,dc=example,dc=org
+member: uid=jsmith,ou=engineering,dc=example,dc=com
