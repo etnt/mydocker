@@ -1,4 +1,0 @@
-# Use ldapmodify
-dn: cn=titan,ou=groups,dc=example,dc=com
-add: member
-member: uid=sbrown,ou=engineering,dc=example,dc=com
