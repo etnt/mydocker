@@ -1,4 +1,13 @@
-# Working with OpenLDAP
+# OpenLDAP
+
+See: https://hub.docker.com/r/bitnami/openldap/
+
+Install as (using the docker-compose.yaml file):
+
+    sudo docker-compose up -d
+    
+
+## Working with OpenLDAP
 
 Add the Engineering organisation:
 
