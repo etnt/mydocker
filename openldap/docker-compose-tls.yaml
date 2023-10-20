@@ -22,7 +22,7 @@ services:
       - LDAP_TLS_KEY_FILE=/opt/bitnami/openldap/certs/openldap.key
       - LDAP_TLS_CA_FILE=/opt/bitnami/openldap/certs/openldapCA.crt
     volumes:
-      - 'openldap_data:/bitnami/openldap/tls'
+      - 'openldap_data_tls:/bitnami/openldap'
       - './ldifs_tls/memberof.ldif:/opt/bitnami/openldap/etc/schema/memberof.ldif'
       - /path/to/certs:/opt/bitnami/openldap/certs
       - /path/to/openldap-data-persistence:/bitnami/openldap/
