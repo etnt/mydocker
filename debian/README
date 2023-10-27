@@ -1,0 +1,24 @@
+# Download and start the container 
+$ sudo docker compose up -d
+
+# Check that it is running
+$ sudo docker ps -a
+
+# The Volumes can be seen here
+$ sudo docker volume ls
+
+# Modify the users.conf file and run:
+$ ./mydock setup_users --name bookworm_slim --users ./debian/users.conf
+sudo docker exec -u root bookworm_slim bash -c groupadd -f -g 1002 crippa
+sudo docker exec -u root bookworm_slim bash -c useradd -m -u 1002 -g 1002 crippa -s /bin/bash
+sudo docker exec -u root bookworm_slim bash -c echo 'crippa  ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/crippa
+
+# Verify that you can "login" as your User
+$ ./mydock user --user crippa --name bookworm_slim 
+sudo docker exec -u root -it bookworm_slim bash -c su -l crippa
+crippa@0e76c87f3c44:~$ id
+uid=1002(crippa) gid=1002(crippa) groups=1002(crippa)
+crippa@0e76c87f3c44:~$ pwd
+/home/crippa
+
+# Now setup your home dot-files, create ssh keys etc...
