@@ -100,9 +100,23 @@ Verify that you can login as one of the users and that it can become root:
     root@arnold:/home/gunnar#
 
 
+## Networking
 
+By setting up routes in s1 and s2 to the gw the s1 and s2 can communicate. 
 
-
+    # Create two networks
+    docker network create backend --subnet 10.0.1.0/24
+    docker network create frontend --subnet 10.0.2.0/24
+    
+    # Create a gateway container connected to both networks
+    docker run .... --name gw --network backend
+    docker network connect frontend gw
+    
+    # Create containers that is able to (e.g) modify its routing table
+    docker run .... --name s1 -network backend --cap-add=NET_ADMIN
+    docker run .... --name s2 -network frontend --cap-add=NET_ADMIN
+     
+ 
 ## Random Notes
 
 To install docker on Linux Mint:
