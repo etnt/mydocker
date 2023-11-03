@@ -9,43 +9,13 @@ Install as (using the docker-compose.yaml file):
 ## Install with TLS/SSL enabled
 
 First create the necessary certifikates and keys.
-See also: https://ubuntu.com/server/docs/service-ldap-with-tls
 
-    $ certtool --generate-privkey --bits 4096 --outfile /etc/ssl/private/mycakey.pem
-    $ cat > /etc/ssl/ca.info
-    cn = Example Company
-    ca
-    cert_signing_key
-    expiration_days = 3650
-    ^D
-    $ certtool --generate-self-signed --load-privkey /etc/ssl/private/mycakey.pem --template /etc/ssl/ca.info --outfile /usr/local/share/ca-certificates/mycacert.crt
-    $ update-ca-certificates
-    $ certtool --generate-privkey --bits 2048 --outfile /etc/ldap/ldap01_slapd_key.pem
-    $ cat > /etc/ssl/ldap01.info
-    organization = Example Company
-    cn = ldap01.example.com
-    tls_www_server
-    encryption_key
-    signing_key
-    expiration_days = 365
-    ^D
-    $ certtool --generate-certificate --load-privkey /etc/ldap/ldap01_slapd_key.pem --load-ca-certificate /etc/ssl/certs/mycacert.pem --load-ca-privkey /etc/ssl/private/mycakey.pem --template /etc/ssl/ldap01.info --outfile /etc/ldap/ldap01_slapd_cert.pem
-    $ chgrp openldap /etc/ldap/ldap01_slapd_key.pem
-    $ chmod 0640 /etc/ldap/ldap01_slapd_key.pem
-    $ cd /etc/ldap
-    $ mkdir -p bitnami/certs
-    $ cd bitnami/certs
-    $ cp /etc/ssl/certs/mycacert.pem openldapCA.crt
-    $ cp /etc/ldap/ldap01_slapd_cert.pem openldap.crt
-    $ cp /etc/ldap/ldap01_slapd_key.pem openldap.key
-    
-Then start the container:
+See:
 
-    ./mydock run --config openldap-tls.conf
+    https://ubuntu.com/server/docs/service-ldap-with-tls
+    https://kifarunix.com/setup-openldap-server-with-ssl-tls-on-debian-10/
 
-
-See also: https://kifarunix.com/setup-openldap-server-with-ssl-tls-on-debian-10/
-
+FIXME: haven't got this to work yet!
 
 ## Working with OpenLDAP
 
