@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  bookworm_slim:
+    image: kruskakli/my-debian:v1
+    container_name: bookworm_slim
+    volumes:
+      - debian_home:/home
+    stdin_open: true  # docker run -i
+    tty: true         # docker run -t
+volumes:
+  debian_home:
+    driver: local

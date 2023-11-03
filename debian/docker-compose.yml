@@ -1,0 +1,14 @@
+version: "3.9"
+
+services:
+  bookworm_slim:
+    image: debian:testing-slim
+    container_name: testing_slim
+    volumes:
+      - bookworm_home:/home
+    stdin_open: true  # docker run -i
+    tty: true         # docker run -t
+volumes:
+  bookworm_home:
+    external: true
+    name: bookworm_home

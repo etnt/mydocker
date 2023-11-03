@@ -1,0 +1,23 @@
+UPLOAD IMAGES TO https://containers.cisco.com
+---------------------------------------------
+
+Check the Tutorial for how to login. You'll need to explicitly
+generate an encrypted password to be used:
+
+sudo docker login containers.cisco.com 
+
+Create your favorite container (make run), check its id (mkae ps),
+then give it a proper name, e.g:
+
+sudo docker commit f49662f2ed68 containers.cisco.com/ttornkvi/debian-bullseye-v2
+
+then push it:
+
+sudo docker push containers.cisco.com/ttornkvi/debian-testing-v3
+
+to fetch the image:
+
+sudo docker pull containers.cisco.com/ttornkvi/debian-bullseye-v2
+
+NOTE: when compiling our system on this image you have to specify:
+`env USE_SSL_DIR=/opt/openssl make` , to make use of CiscoSSL-1.1.1.
