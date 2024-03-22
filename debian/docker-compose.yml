@@ -1,14 +1,32 @@
-version: "3.9"
-
 services:
-  bookworm_slim:
-    image: debian:testing-slim
+  testing_slim:
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: testing_slim
-    volumes:
-      - bookworm_home:/home
+    hostname: riff
+    privileged: true
     stdin_open: true  # docker run -i
     tty: true         # docker run -t
-volumes:
-  bookworm_home:
+    volumes:
+      - /tmp/shared_docker_dir:/tmp/shared_docker_dir
+      - type: volume
+        source: debian_home
+        target: /home
+    ports:
+      - "2222:22"
+      - "9008:8008"
+      - "4008:4000"
+      - "9080:8080"
+      - "7123:7123"
+      - "7456:7456"
+    networks:
+      - mybridge
+
+networks:
+  mybridge:
     external: true
-    name: bookworm_home
+
+volumes:
+  debian_home:
+    external: true

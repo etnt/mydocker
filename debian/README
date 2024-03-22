@@ -1,7 +1,7 @@
 # Download and start the container 
-$ sudo docker compose up -d
+$ sudo docker compose up -d --build
 
-# Check that it is running
+# Check that it is running or use: lazydocker
 $ sudo docker ps -a
 
 # The Volumes can be seen here
