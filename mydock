@@ -104,7 +104,7 @@ user() {
 _shell() {
   [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
   echo "sudo docker exec -it ${NAME} bash"
-  [[ ${dry_run} -eq 0 ]] && sudo docker exec -it ${NAME} bash
+  [[ ${dry_run} -eq 0 ]] && sudo docker exec -u root -it ${NAME} bash
 }
 
 _ps() {
