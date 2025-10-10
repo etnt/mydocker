@@ -169,10 +169,10 @@ run() {
   [[ -z "${SHARED_DIR-}" ]] && die "Missing required SHARED_DIR"
   EXTRA=${EXTRA_RUN_FLAGS}
   echo "sudo docker run -dt --privileged  -v ${SHARED_DIR}:${SHARED_DIR} ${EXTRA} $PMAP $EMAP \
-    --name ${NAME} --hostname ${HOSTNAME-arnold} ${REPOSITORY}:${TAG-latest}"
+    --name ${NAME} --hostname ${HOSTNAME-arnold} ${REPOSITORY}:${TAG-latest} /bin/bash"
   [[ ${dry_run} -eq 0 ]] && sudo docker run -dt --privileged  -v ${SHARED_DIR}:${SHARED_DIR} ${EXTRA} \
                   $PMAP $EMAP \
-                  --name ${NAME} --hostname ${HOSTNAME-arnold} ${REPOSITORY}:"${TAG-latest}"
+                  --name ${NAME} --hostname ${HOSTNAME-arnold} ${REPOSITORY}:"${TAG-latest} /bin/bash"
 }
 
 _exec() {
