@@ -1,127 +1,214 @@
-# HOW TO USE THE mydock SCRIPT
+# mydock
 
-This is a simple script on top of all those docker commands
-that I never can remember (OTOH, now I need to remember how
-the `mydock` script is used... :-P ).
+Docker container management wrapper with interactive shell and user mirroring.
 
-A container repository offers storage for container images.
-Container images are used to create new containers in runtime
-based on preset definitions established in the image itself.
+## Quick Start
 
-`mydock` make use of a simple config file, containing some
-basic info to be used by the `mydock` commands. If no 
-`--config <file>` is given the `default.conf` file is used:
+Interactive mode (recommended):
+```bash
+./mydock
+mydock> wizard          # Create a config file
+mydock> use myapp.conf  # Load config
+mydock> run             # Create and start container
+mydock> shell           # Enter container
+```
 
-    > cat default.conf
-    REPOSITORY=containers.acme.com/tobbe/debian-bullseye-v2
-    TAG=v3
-    NAME=nils
-    SHARED_DIR=/tmp/shared_docker_dir
-    HOSTNAME=arnold
-    
-For all `mydock` commands you can use the `--dry-run` switch
-to see what the resulting docker command looks like without
-actually executing it.
+Direct commands:
+```bash
+./mydock --config myapp.conf run
+./mydock --config myapp.conf shell
+```
 
-## Build a docker image
+## Features
 
-    # Build an image based on the (default) `Dockerfile` file
-    > mydock build
-    
-    # Build an image based on the specified dockerfile file
-    > mydock build --docker-file Dockerfile.bullseye
-    
-    # As above but use a specified config file
-    > mydock build --config my.conf --docker-file Dockerfile.bullseye
+- Interactive shell mode - REPL environment for managing containers
+- User mirroring - Automatic UID/GID matching between host and container
+- Configuration wizard - Guided setup for creating config files
+- Network management - Built-in Docker network operations
+- Config file based - Reusable container definitions
 
-## Start/Stop/Remove a (new) container based on an image
+## Configuration
 
-    # Start a new container, making use of the default.conf settings
-    > mydock run
-    
-    # Start a new container; give the container an explicit name
-    > mydock run --name bill
+Config files are stored in `conf/` directory. Example:
 
-    # Stop a container identified by a name
-    > mydock stop --name bill
+```bash
+# conf/myapp.conf
+REPOSITORY=debian
+TAG=latest
+NAME=myapp
+HOSTNAME=myapp
+SHARED_DIR=/home/user/projects
 
-    # Start an existing, named, container
-    > mydock start --name bill
+# User mirroring (optional)
+MIRROR_USER=yes
+MIRROR_DIRS=(
+  "/home/user/projects"
+  "/home/user/.gitconfig:ro"
+  "/home/user/.ssh:ro"
+)
 
-    # Remove a named container
-    > mydock rm --name bill
+# Networking (optional)
+NETWORK_NAME=mynetwork
+PORTS=8080:8080
+```
 
-## Show some info about available images and containers
+## Interactive Mode
 
-    > mydock show
+Run `./mydock` without arguments to enter interactive mode.
 
-## Commit (store permanently) a container
+**Configuration:**
+- `use <config>` - Load config file
+- `configs` - List available configs
+- `wizard` - Create new config (full)
+- `quick` - Create config (3 questions)
+- `show` - Display current config
+- `set <param> <value>` - Override config value
 
-When you have made any changes in your container that you want to
-store as a new, tagged, image version.
+**Container Operations:**
+- `run [--dry-run]` - Create and start container
+- `start [name]` - Start container (uses config if no name given)
+- `stop [name]` - Stop container
+- `rm [name]` - Remove container
+- `shell [name]` - Enter container shell
+- `user [name] [username]` - Enter as user
+- `logs [name]` - Show container logs
+- `sync [name]` - Commit container to image
 
-    # Use the default.conf settings with the TAG=latest
-    > mydock sync 
+**Info:**
+- `ps` - List containers
+- `images` - List images
+- `network <cmd>` - Network operations
 
-    # Use the default.conf settings with an explicit TAG
-    > mydock sync --tag v7
+## Command Line Usage
 
+```bash
+# Container operations
+./mydock run --config myapp.conf
+./mydock start --name myapp
+./mydock stop --name myapp
+./mydock shell --name myapp
+./mydock rm --name myapp
 
-## Setup Users in the Container
+# User operations
+./mydock user --name myapp --user alice
+./mydock setup_mirror --name myapp
+./mydock setup_users --users users.csv --name myapp
 
-So setup one or several User accounts in your container,
-create a CSV file containing the Username/Userid/Groupname/Groupid:
+# Info
+./mydock ps
+./mydock images
+./mydock show_config --config myapp.conf
 
-    ❯ cat users.conf 
-    rune,1002,rune,1002
-    gunnar,1003,gunnar,1003 
+# Build
+./mydock build --docker-file Dockerfile
 
-Run the command `setup_users`, verify first with `--dry-run`:
+# Dry run
+./mydock run --config myapp.conf --dry-run
+```
 
-    ❯ ./mydock setup_users --dry-run --users users.conf
-    USERNAME             USERID     GROUPNAME            GROUPID
-    rune                 1002       rune                 1002
-    sudo docker exec -u root nils bash -c groupadd -f -g 1002 rune
-    sudo docker exec -u root nils bash -c useradd -m -u 1002 -g 1002 rune -s /bin/bash
-    sudo docker exec -u root nils bash -c echo 'rune  ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/rune
-    --- 
-    gunnar               1003       gunnar               1003
-    sudo docker exec -u root nils bash -c groupadd -f -g 1003 gunnas
-    sudo docker exec -u root nils bash -c useradd -m -u 1003 -g 1003 gunnar -s /bin/bash
-    sudo docker exec -u root nils bash -c echo 'gunnar  ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/gunnar
+## User Mirroring
 
-If it looks good, run the command without `--dry-run`.
+Automatically creates a user in the container matching your host user (UID/GID).
+Files edited in the container have correct ownership on the host.
 
-Verify that you can login as one of the users and that it can become root:
+Enable in config:
+```bash
+MIRROR_USER=yes
+MIRROR_DIRS=(
+  "/home/user/work"
+  "/home/user/.gitconfig:ro"
+)
+```
 
-    ❯ ./mydock user --user gunnar
-    sudo docker exec -u root -it nils bash -c su -l gunnar
-    gunnar@arnold:~$ sudo bash
-    root@arnold:/home/gunnar#
+Or use flag:
+```bash
+./mydock run --mirror-user
+```
 
+Setup in existing container:
+```bash
+./mydock setup_mirror --name mycontainer
+```
 
-## Networking
+## Setup Multiple Users
 
-By setting up routes in s1 and s2 to the gw the s1 and s2 can communicate. 
+Create CSV file (Username,UID,Groupname,GID):
+```csv
+rune,1002,rune,1002
+gunnar,1003,gunnar,1003
+```
 
-    # Create two networks
-    docker network create backend --subnet 10.0.1.0/24
-    docker network create frontend --subnet 10.0.2.0/24
-    
-    # Create a gateway container connected to both networks
-    docker run .... --name gw --network backend
-    docker network connect frontend gw
-    
-    # Create containers that is able to (e.g) modify its routing table
-    docker run .... --name s1 -network backend --cap-add=NET_ADMIN
-    docker run .... --name s2 -network frontend --cap-add=NET_ADMIN
-     
- 
-## Random Notes
+Run command:
+```bash
+./mydock setup_users --users users.csv --name mycontainer --dry-run
+./mydock setup_users --users users.csv --name mycontainer
+```
 
-To install docker on Linux Mint:
+Verify:
+```bash
+./mydock user --name mycontainer --user gunnar
+```
 
- https://gist.github.com/sirkkalap/e87cd580a47b180a7d32[A
+## Network Management
 
-curl -sSL https://gist.githubusercontent.com/sirkkalap/e87cd580a47b180a7d32/raw/d9c9ebae4f5cf64eed4676e8aedac265b5a51bfa/Install-Docker-on-Linux-Mint.sh | bash -x
+Networks must be configured in the config file for `network create`:
+```bash
+# In config file
+NETWORK_NAME=mynetwork
+NETWORK_DRIVER=bridge          # Optional, default: bridge
+NETWORK_SUBNET=172.18.0.0/16   # Optional
+NETWORK_GATEWAY=172.18.0.1     # Optional
+NETWORK_CREATE_IF_MISSING=yes  # Auto-create if missing
+```
 
+Interactive mode:
+```bash
+mydock> use mynetwork.conf
+mydock> network create                    # Creates network from config
+mydock> network list                      # List all networks
+mydock> network inspect mynetwork         # Show network details
+mydock> network connect mynetwork myapp   # Connect container to network
+mydock> network disconnect mynetwork myapp
+mydock> network rm mynetwork              # Remove network
+```
+
+Command line:
+```bash
+./mydock --config myapp.conf run  # Auto-creates network if NETWORK_CREATE_IF_MISSING=yes
+```
+
+## Examples
+
+### Development Container
+```bash
+./mydock
+mydock> wizard
+# Follow prompts to create dev.conf
+mydock> use dev.conf
+mydock> run
+mydock> shell
+```
+
+### Quick Setup
+```bash
+./mydock
+mydock> quick
+# Answer 3 questions: image, name, directory
+mydock> run
+```
+
+## Options
+
+```
+-h, --help              Show help
+-v, --verbose           Verbose output
+-n, --name <name>       Container name
+--tag <tag>             Image tag
+-u, --user <user>       Username
+-p, --ports <ports>     Port mapping
+--config <file>         Config file
+--docker-file <file>    Dockerfile for build
+--network <name>        Network name
+--mirror-user           Enable user mirroring
+--dry-run               Show command without executing
+```

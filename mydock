@@ -1,22 +1,33 @@
 #!/usr/bin/env bash
-
-# TODO:
 #
-# Creating user in the Makefile:
-# prepare_user: prepare_user.$(USERNAME)
+# mydock - Enhanced Docker container management script
+# Phase 1: User Mirroring, Network Management, Interactive Shell
 #
-
 
 set -Eeuo pipefail
 trap cleanup SIGINT SIGTERM ERR EXIT
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 
+# Load library functions
+if [[ -f "${script_dir}/lib/utils.sh" ]]; then
+  source "${script_dir}/lib/utils.sh"
+  source "${script_dir}/lib/mirror.sh"
+  source "${script_dir}/lib/network.sh"
+  source "${script_dir}/lib/interactive.sh"
+  source "${script_dir}/lib/wizard.sh"
+fi
+
 PORTS=
 ENV=
 EXTRA_RUN_FLAGS=
+VERBOSE=0
 
-. ./default.conf
+# Configuration directory
+CONF_DIR="${script_dir}/conf"
+
+# Load default config if exists
+[[ -f "${CONF_DIR}/default.conf" ]] && . "${CONF_DIR}/default.conf"
 
 cleanup() {
   trap - SIGINT SIGTERM ERR EXIT
@@ -24,62 +35,131 @@ cleanup() {
 }
 
 usage() {
-  cat << EOF # remove the space between << and EOF, this is due to web plugin issue
+  cat << EOF
 Usage: $(basename "${BASH_SOURCE[0]}") <cmd> [<options>]
 
 Available commands:
 
-build           Build image from --docker-file
-images          Show all images
-logs            Show logs
-ps              Show all containers
-rm              Remove container
-rm_image        Remove image
-run             Create and Start a new container
-setup_users     Create Users according to --users <file>
-shell           Enter container in a shell
-show            Run the images and ps command
-show_config     Show the config parameters
-start           Start an existing container
-stop            Stop a container
-sync            Commit container (save it)
-user            Enter container as User
-help            This help
+Container Management:
+  build           Build image from --docker-file
+  run             Create and start a new container
+  start           Start an existing container
+  stop            Stop a container
+  rm              Remove container
+  rm_image        Remove image
+  shell           Enter container in a shell
+  user            Enter container as User
+  sync            Commit container (save it)
+  logs            Show logs
+
+Information:
+  images          Show all images
+  ps              Show all containers
+  show            Run the images and ps command
+  show_config     Show the config parameters
+
+User Management:
+  setup_users     Create users according to --users <file>
+  setup_mirror    Setup mirrored user in existing container
+  
+Network Management:
+  network         Network operations (create, list, inspect, remove, connect, disconnect)
+
+Configuration:
+  wizard          Interactive wizard to create config files
+  quick           Quick setup wizard (minimal questions)
+
+Interactive Mode:
+  interactive     Enter interactive shell mode
+  (no command)    Enter interactive mode (default)
+
+Utility:
+  help            This help
 
 Available options:
 
--h, --help             Print this help and exit
--v, --verbose          Be Verbose (set -x)
--n, --name             Name of container (overide config file setting)
---tag <tag>            Tag name  (overide config file setting)
--u, --user <user>      User name  (overide env / config file setting)
---config <file>        Use config file (default is: default.conf)
-                       (use as first switch)
--p, --port <Host:Cont> Map ports; used whith command 'run'
--e, --env <ENVVARS>    Setup environment variables: "K:V"
---docker-file <file>   Dockerfile to be used
---dry-run              Don't actually execute the command
+-h, --help              Print this help and exit
+-v, --verbose           Be Verbose (set -x)
+-n, --name <name>       Name of container (override config file setting)
+--tag <tag>             Tag name (override config file setting)
+-u, --user <user>       User name (override env / config file setting)
+-p, --ports <ports>     Ports to expose (override config file setting)
+-e, --env <env>         Environment variables (override config file setting)
+--config <file>         Load configuration file
+--users <file>          Users file for setup_users command
+--docker-file <file>    Dockerfile for build command
+--network <name>        Network name (override config file setting)
+--mirror-user           Enable user mirroring
+--dry-run               Show docker command without executing
+--xcmd <cmd>            Execute command in container
+
+Examples:
+  $(basename "${BASH_SOURCE[0]}")                    # Enter interactive mode
+  $(basename "${BASH_SOURCE[0]}") interactive        # Enter interactive mode
+  $(basename "${BASH_SOURCE[0]}") wizard             # Create new config file
+  $(basename "${BASH_SOURCE[0]}") --config debian.conf run    # Run container with config
+  $(basename "${BASH_SOURCE[0]}") --config debian.conf shell  # Enter container shell
+
 EOF
-  exit
+  exit 0
 }
 
-[[ -z "$@" ]] && usage
-
-
 config() {
-  . ./"${config_file-default.conf}"
+  local conf_file="${config_file-default.conf}"
+  
+  # Handle both absolute paths and relative config names
+  local conf_path=""
+  if [[ "${conf_file}" == /* ]]; then
+    # Absolute path
+    conf_path="${conf_file}"
+  elif [[ -f "${conf_file}" ]]; then
+    # File in current directory (for backwards compatibility)
+    conf_path="${conf_file}"
+  else
+    # Look in conf directory
+    conf_path="${CONF_DIR}/${conf_file}"
+  fi
+  
+  if [[ -f "${conf_path}" ]]; then
+    # Source the config file, but don't exit if it has issues
+    set +e
+    . "${conf_path}"
+    local result=$?
+    set -e
+    if [[ ${result} -ne 0 ]]; then
+      msg_warning "Warning: config file ${conf_file} had errors during loading"
+    fi
+  else
+    if [[ "${conf_file}" != "default.conf" ]]; then
+      msg_error "Config file not found: ${conf_path}"
+      return 1
+    fi
+  fi
 }
 
 dry_run=0
-
+mirror_user_flag=0
 
 show_config() {
-  echo "Config file: "${config_file-default.conf}""
-  echo "REPOSITORY      = ${REPOSITORY}"
-  echo "TAG             = ${TAG}"
-  echo "NAME            = ${NAME}"
-  echo "SHARED_DIR      = ${SHARED_DIR}"
-  echo "EXTRA_RUN_FLAGS = ${EXTRA_RUN_FLAGS}"
+  msg_header "Configuration"
+  echo "Config file: ${config_file-default.conf}"
+  echo ""
+  echo "Container Settings:"
+  echo "  REPOSITORY      = ${REPOSITORY:-<not set>}"
+  echo "  TAG             = ${TAG:-latest}"
+  echo "  NAME            = ${NAME:-<not set>}"
+  echo "  HOSTNAME        = ${HOSTNAME:-arnold}"
+  echo "  SHARED_DIR      = ${SHARED_DIR:-<not set>}"
+  echo "  PORTS           = ${PORTS:-<none>}"
+  echo "  EXTRA_RUN_FLAGS = ${EXTRA_RUN_FLAGS:-<none>}"
+  echo ""
+  
+  # Show network config if present
+  show_network_config
+  echo ""
+  
+  # Show mirror config if present
+  show_mirror_config
 }
 
 start() {
@@ -97,7 +177,7 @@ stop() {
 user() {
   [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
   [[ -z "${USER-}" ]] && die "Missing required user: --user <user>"
-  echo "sudo docker exec -u root -it ${NAME} bash -c su -l ${USER}"
+  echo "sudo docker exec -u root -it ${NAME} bash -c \"su -l ${USER}\""
   [[ ${dry_run} -eq 0 ]] && sudo docker exec -u root -it ${NAME} bash -c "su -l ${USER}"
 }
 
@@ -118,6 +198,7 @@ images() {
 }
 
 logs() {
+  [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
   echo "sudo docker logs ${NAME}"
   [[ ${dry_run} -eq 0 ]] && sudo docker logs ${NAME}
 }
@@ -130,8 +211,8 @@ show() {
 
 build() {
   [[ -z "${REPOSITORY-}" ]] && die "Missing required REPOSITORY"
-  echo "sudo docker build -t ${REPOSITORY} - < 	${DOCKERFILE-Dockerfile}"
-  sudo docker build -t ${REPOSITORY} - < 	${DOCKERFILE-Dockerfile}
+  echo "sudo docker build -t ${REPOSITORY} - < ${DOCKERFILE-Dockerfile}"
+  [[ ${dry_run} -eq 0 ]] && sudo docker build -t ${REPOSITORY} - < ${DOCKERFILE-Dockerfile}
 }
 
 remove() {
@@ -149,30 +230,78 @@ remove_image() {
 sync() {
   [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
   [[ -z "${REPOSITORY-}" ]] && die "Missing required REPOSITORY"
-  echo "docker commit -m sync" ${NAME} ${REPOSITORY}:"${TAG-latest}"
+  echo "docker commit -m \"sync\" ${NAME} ${REPOSITORY}:${TAG-latest}"
   [[ ${dry_run} -eq 0 ]] && sudo docker commit -m "sync" ${NAME} ${REPOSITORY}:"${TAG-latest}"
 }
 
 run() {
+  # Validate required parameters
+  [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
+  [[ -z "${REPOSITORY-}" ]] && die "Missing required REPOSITORY"
+  [[ -z "${SHARED_DIR-}" ]] && die "Missing required SHARED_DIR"
+  
+  # Auto-create network if configured
+  if [[ ${dry_run} -eq 0 ]]; then
+    auto_create_network
+  fi
+  
+  # Build port mappings
   if [ ! -z "${PORTS}" ]; then
     PMAP="-p ${PORTS}"
   else
     PMAP=""
   fi
+  
+  # Build environment variables
   if [ ! -z "${ENV}" ]; then
     EMAP="-e ${ENV}"
   else
     EMAP=""
   fi
-  [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
-  [[ -z "${REPOSITORY-}" ]] && die "Missing required REPOSITORY"
-  [[ -z "${SHARED_DIR-}" ]] && die "Missing required SHARED_DIR"
+  
+  # Build network flags
+  NMAP=$(build_network_flags)
+  
+  # Build mirror mounts if user mirroring is enabled
+  MMAP=""
+  if [[ "${MIRROR_USER:-no}" == "yes" ]] || [[ ${mirror_user_flag} -eq 1 ]]; then
+    # Detect host user if not already done
+    if [[ -z "${DETECTED_USER:-}" ]]; then
+      detect_host_user "${MIRROR_USER_NAME:-$USER}"
+    fi
+    
+    # Build mirror mounts
+    MMAP=$(build_mirror_mounts)
+  fi
+  
   EXTRA=${EXTRA_RUN_FLAGS}
-  echo "sudo docker run -dt --privileged  -v ${SHARED_DIR}:${SHARED_DIR} ${EXTRA} $PMAP $EMAP \
-    --name ${NAME} --hostname ${HOSTNAME-arnold} ${REPOSITORY}:${TAG-latest} /bin/bash"
-  [[ ${dry_run} -eq 0 ]] && sudo docker run -dt --privileged  -v ${SHARED_DIR}:${SHARED_DIR} ${EXTRA} \
-                  $PMAP $EMAP \
-                  --name ${NAME} --hostname ${HOSTNAME-arnold} ${REPOSITORY}:"${TAG-latest} /bin/bash"
+  
+  # Build and display command
+  echo "sudo docker run -dt --privileged -v ${SHARED_DIR}:${SHARED_DIR} ${EXTRA} ${MMAP} ${PMAP} ${EMAP} ${NMAP} --name ${NAME} --hostname ${HOSTNAME-arnold} ${REPOSITORY}:${TAG-latest} /bin/bash"
+  
+  # Execute if not dry-run
+  if [[ ${dry_run} -eq 0 ]]; then
+    if sudo docker run -dt --privileged -v ${SHARED_DIR}:${SHARED_DIR} ${EXTRA} ${MMAP} \
+                    ${PMAP} ${EMAP} ${NMAP} \
+                    --name ${NAME} --hostname ${HOSTNAME-arnold} ${REPOSITORY}:"${TAG-latest}" /bin/bash; then
+      msg_success "Container ${NAME} created and started"
+      
+      # Setup mirrored user if enabled
+      if [[ "${MIRROR_USER:-no}" == "yes" ]] || [[ ${mirror_user_flag} -eq 1 ]]; then
+        sleep 2  # Give container time to fully start
+        msg_info "Setting up mirrored user..."
+        setup_mirror_user "${NAME}" "${MIRROR_USER_NAME:-$DETECTED_USER}" \
+                         "${MIRROR_USER_UID:-$DETECTED_UID}" \
+                         "${MIRROR_USER_GID:-$DETECTED_GID}"
+        setup_mirror_directories "${NAME}" "${MIRROR_USER_NAME:-$DETECTED_USER}" \
+                                "${MIRROR_USER_UID:-$DETECTED_UID}" \
+                                "${MIRROR_USER_GID:-$DETECTED_GID}"
+      fi
+    else
+      msg_error "Failed to create container"
+      return 1
+    fi
+  fi
 }
 
 _exec() {
@@ -184,7 +313,7 @@ _exec() {
 
 _root_exec() {
   [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
-  echo "sudo docker exec -u root ${NAME} bash -c $1"
+  echo "sudo docker exec -u root ${NAME} bash -c \"$1\""
   [[ ${dry_run} -eq 0 ]] && sudo docker exec -u root ${NAME} bash -c "$1"
   return 0
 }
@@ -199,32 +328,96 @@ setup_users() {
       _root_exec "useradd -m -u ${userid} -g ${groupid} ${username} -s /bin/bash"
       _root_exec "echo '${username}  ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/${username}"
     done < ${USERS}
+}
 
+setup_mirror() {
+  [[ -z "${NAME-}" ]] && die "Missing required name: --name <name>"
+  
+  # Detect host user
+  detect_host_user "${MIRROR_USER_NAME:-$USER}"
+  
+  # Setup user in container
+  setup_mirror_user "${NAME}" "${MIRROR_USER_NAME:-$DETECTED_USER}" \
+                   "${MIRROR_USER_UID:-$DETECTED_UID}" \
+                   "${MIRROR_USER_GID:-$DETECTED_GID}"
+  
+  # Setup directories
+  setup_mirror_directories "${NAME}" "${MIRROR_USER_NAME:-$DETECTED_USER}" \
+                          "${MIRROR_USER_UID:-$DETECTED_UID}" \
+                          "${MIRROR_USER_GID:-$DETECTED_GID}"
+}
+
+# Network command dispatcher
+network_cmd() {
+  local subcmd="${1:-}"
+  shift || true
+  
+  case "${subcmd}" in
+    create)
+      network_create
+      ;;
+    list|ls)
+      network_list
+      ;;
+    inspect)
+      network_inspect "$@"
+      ;;
+    remove|rm)
+      network_remove "$@"
+      ;;
+    connect)
+      network_connect "$@"
+      ;;
+    disconnect)
+      network_disconnect "$@"
+      ;;
+    *)
+      echo "Usage: $(basename "${BASH_SOURCE[0]}") network <create|list|inspect|remove|connect|disconnect> [args]"
+      echo ""
+      echo "Network commands:"
+      echo "  create                    Create network from config file"
+      echo "  list, ls                  List all networks"
+      echo "  inspect <network>         Inspect network details"
+      echo "  remove <network>          Remove a network"
+      echo "  connect <net> <container> Connect container to network"
+      echo "  disconnect <net> <cont>   Disconnect container from network"
+      exit 1
+      ;;
+  esac
 }
 
 msg() {
-  # ${parameter-default}, ${parameter:-default}
-  # If parameter not set, use default.
   echo >&2 -e "${1-}"
 }
 
 die() {
   local msg=$1
-  local code=${2-1} # default exit status 1
-  msg "$msg"
+  local code=${2-1}
+  msg_error "$msg"
   exit "$code"
 }
 
 parse_params() {
-  # default values of variables set from params
-  flag=0
-  param=''
-  cmd="$1"; shift
+  # If no arguments provided, default to interactive mode
+  if [[ $# -eq 0 ]]; then
+    cmd="interactive"
+    return 0
+  fi
+  
+  # Handle help flags before treating first arg as command
+  if [[ "${1}" == "-h" ]] || [[ "${1}" == "--help" ]]; then
+    usage
+  fi
+  
+  cmd="${1:-}"; shift || true
 
   while :; do
     case "${1-}" in
     -h | --help) usage ;;
-    -v | --verbose) set -x ;;
+    -v | --verbose) 
+      set -x 
+      VERBOSE=1
+      ;;
     -n | --name)
       NAME="${2-}"
       shift
@@ -254,8 +447,6 @@ parse_params() {
       shift
       ;;
     --config)
-      # Important to have --config first in args
-      # so that other switches can override.
       config_file="${2-}"
       config
       shift
@@ -268,7 +459,16 @@ parse_params() {
       DOCKERFILE="${2-}"
       shift
       ;;
-    --dry-run) dry_run=1 ;;
+    --network)
+      NETWORK_NAME="${2-}"
+      shift
+      ;;
+    --mirror-user)
+      mirror_user_flag=1
+      ;;
+    --dry-run) 
+      dry_run=1 
+      ;;
     -?*) die "Unknown option: $1" ;;
     *) break ;;
     esac
@@ -277,18 +477,18 @@ parse_params() {
 
   args=("$@")
 
-  # check required params and arguments
   [[ -z "${cmd-}" ]] && die "Missing required command: <cmd>"
 
   return 0
 }
 
+# Load default config
 config
 
+# Parse parameters
 parse_params "$@"
 
-# script logic here
-
+# Execute command
 case "${cmd-}" in
   help) usage ;;
   build) build ;;
@@ -307,6 +507,10 @@ case "${cmd-}" in
   logs) logs ;;
   show_config) show_config ;;
   setup_users) setup_users ;;
-
-  *) die "Unknown command: $1" ;;
+  setup_mirror) setup_mirror ;;
+  network) network_cmd "${args[@]}" ;;
+  wizard) config_wizard ;;
+  quick) quick_wizard ;;
+  interactive) interactive_shell ;;
+  *) die "Unknown command: ${cmd}" ;;
 esac
